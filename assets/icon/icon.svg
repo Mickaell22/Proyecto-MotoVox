@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- Fondo -->
+  <rect width="1024" height="1024" rx="180" fill="#0A0A0A"/>
+
+  <!-- Ondas de audio izquierda -->
+  <path d="M180 420 Q140 512 180 604" stroke="#FF6D00" stroke-width="36" fill="none" stroke-linecap="round"/>
+  <path d="M120 360 Q60 512 120 664" stroke="#FF6D00" stroke-width="28" fill="none" stroke-linecap="round" opacity="0.5"/>
+
+  <!-- Ondas de audio derecha -->
+  <path d="M844 420 Q884 512 844 604" stroke="#FF6D00" stroke-width="36" fill="none" stroke-linecap="round"/>
+  <path d="M904 360 Q964 512 904 664" stroke="#FF6D00" stroke-width="28" fill="none" stroke-linecap="round" opacity="0.5"/>
+
+  <!-- Casco — forma principal -->
+  <path d="M512 220
+    C340 220 220 340 220 490
+    L220 580
+    C220 610 244 634 274 634
+    L360 634
+    C370 660 394 678 422 678
+    L602 678
+    C630 678 654 660 664 634
+    L750 634
+    C780 634 804 610 804 580
+    L804 490
+    C804 340 684 220 512 220 Z"
+    fill="#FFFFFF"/>
+
+  <!-- Visor / visera -->
+  <path d="M320 460
+    C320 440 336 424 356 424
+    L668 424
+    C688 424 704 440 704 460
+    L704 530
+    C704 550 688 566 668 566
+    L356 566
+    C336 566 320 550 320 530 Z"
+    fill="#FF6D00"/>
+
+  <!-- Reflejo visor -->
+  <path d="M340 440 L440 440 L420 546 L340 546 Z"
+    fill="#FFFFFF" opacity="0.15"/>
+</svg>
