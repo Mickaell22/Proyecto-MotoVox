@@ -1,0 +1,4 @@
+// Copia este archivo a config.dart y define tu codigo de administrador
+// NUNCA commitees config.dart
+
+const String adminCode = 'CAMBIA_ESTE_CODIGO';

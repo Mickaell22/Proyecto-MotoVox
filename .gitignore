@@ -65,5 +65,8 @@ Desktop.ini
 # Claude Code
 .claude/
 
+# Configuracion local con secrets
+lib/config.dart
+
 # Logs
 *.log
