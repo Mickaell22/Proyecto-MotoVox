@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:share_plus/share_plus.dart';
 import '../services/license_service.dart';
@@ -62,10 +63,19 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  void _shareApp() {
-    Share.share(
-      'Descarga MotoVox — intercomunicador para moto sin internet.',
-    );
+  static const _channel = MethodChannel('com.motovox.motovox/app');
+
+  Future<void> _shareApp() async {
+    try {
+      final apkPath = await _channel.invokeMethod<String>('getApkPath');
+      if (apkPath == null) return;
+      await Share.shareXFiles(
+        [XFile(apkPath, mimeType: 'application/vnd.android.package-archive')],
+        text: 'MotoVox — intercomunicador para moto sin internet.',
+      );
+    } catch (_) {
+      Share.share('MotoVox — intercomunicador para moto sin internet.');
+    }
   }
 
   void _onLogoTap() {
@@ -123,7 +133,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const SizedBox(height: 32),
               TextButton(
-                onPressed: _shareApp,
+                onPressed: () => _shareApp(),
                 child: const Text('Compartir app'),
               ),
               const SizedBox(height: 16),
