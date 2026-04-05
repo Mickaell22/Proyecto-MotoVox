@@ -15,6 +15,7 @@ class ConnectedScreen extends StatefulWidget {
 class _ConnectedScreenState extends State<ConnectedScreen> {
   RTCPeerConnectionState _state = RTCPeerConnectionState.RTCPeerConnectionStateConnecting;
   StreamSubscription? _sub;
+  bool _muted = false;
 
   @override
   void initState() {
@@ -33,6 +34,11 @@ class _ConnectedScreenState extends State<ConnectedScreen> {
 
   void _disconnect() {
     Navigator.of(context).popUntil((route) => route.isFirst);
+  }
+
+  void _toggleMute() {
+    setState(() => _muted = !_muted);
+    widget.webrtc.setMuted(_muted);
   }
 
   bool get _isConnected =>
@@ -98,12 +104,25 @@ class _ConnectedScreenState extends State<ConnectedScreen> {
               if (_isConnected) ...[
                 const SizedBox(height: 8),
                 Text(
-                  'Audio activo — sin push-to-talk',
+                  _muted ? 'Microfono silenciado' : 'Audio activo — sin push-to-talk',
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.bodyMedium,
                 ),
               ],
               const Spacer(),
+              OutlinedButton.icon(
+                onPressed: _toggleMute,
+                icon: Icon(_muted ? Icons.mic_off : Icons.mic),
+                label: Text(_muted ? 'ACTIVAR MICROFONO' : 'SILENCIAR'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: _muted ? Colors.redAccent : AppColors.orange,
+                  side: BorderSide(
+                    color: _muted ? Colors.redAccent : AppColors.orange,
+                    width: 2,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
               ElevatedButton(
                 onPressed: _disconnect,
                 style: ElevatedButton.styleFrom(

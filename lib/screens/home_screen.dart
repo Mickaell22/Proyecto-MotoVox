@@ -4,6 +4,7 @@ import 'package:share_plus/share_plus.dart';
 import '../services/license_service.dart';
 import 'qr_screen.dart';
 import 'expired_screen.dart';
+import 'settings_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -15,6 +16,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _daysRemaining = LicenseService.trialDays;
   bool _unlocked = false;
+  int _logoTapCount = 0;
 
   @override
   void initState() {
@@ -66,11 +68,31 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  void _onLogoTap() {
+    _logoTapCount++;
+    if (_logoTapCount >= 10) {
+      _logoTapCount = 0;
+      _goToSettings();
+    }
+  }
+
+  void _goToSettings() {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const SettingsScreen()),
+    ).then((_) => _checkLicense());
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('MOTOVOX'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.settings_outlined),
+            onPressed: _goToSettings,
+          ),
+        ],
       ),
       body: SafeArea(
         child: Padding(
@@ -79,7 +101,10 @@ class _HomeScreenState extends State<HomeScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const Spacer(),
-              _HelmetIcon(),
+              GestureDetector(
+                onTap: _onLogoTap,
+                child: _HelmetIcon(),
+              ),
               const SizedBox(height: 12),
               Text(
                 'Intercomunicador para moto',

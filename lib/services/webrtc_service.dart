@@ -12,9 +12,19 @@ class WebRtcService {
 
   RTCPeerConnection? _pc;
   MediaStream? _localStream;
+  bool _muted = false;
+
+  bool get isMuted => _muted;
 
   final _connectionStateController = StreamController<RTCPeerConnectionState>.broadcast();
   Stream<RTCPeerConnectionState> get connectionState => _connectionStateController.stream;
+
+  void setMuted(bool mute) {
+    _muted = mute;
+    _localStream?.getAudioTracks().forEach((track) {
+      track.enabled = !mute;
+    });
+  }
 
   WebRtcService.host({required SignalingServer signalingServer})
       : role = WebRtcRole.host,
