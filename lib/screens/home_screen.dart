@@ -185,7 +185,7 @@ class _HelmetPainter extends CustomPainter {
       final path = Path()
         ..moveTo(-offset, h * 0.35)
         ..quadraticBezierTo(-offset - 10, h * 0.55, -offset, h * 0.75);
-      wavePaint.color = color.withOpacity(i == 0 ? 1.0 : 0.4);
+      wavePaint.color = color.withValues(alpha:i == 0 ? 1.0 : 0.4);
       canvas.drawPath(path, wavePaint);
     }
 
@@ -195,7 +195,7 @@ class _HelmetPainter extends CustomPainter {
       final path = Path()
         ..moveTo(w + offset, h * 0.35)
         ..quadraticBezierTo(w + offset + 10, h * 0.55, w + offset, h * 0.75);
-      wavePaint.color = color.withOpacity(i == 0 ? 1.0 : 0.4);
+      wavePaint.color = color.withValues(alpha:i == 0 ? 1.0 : 0.4);
       canvas.drawPath(path, wavePaint);
     }
   }

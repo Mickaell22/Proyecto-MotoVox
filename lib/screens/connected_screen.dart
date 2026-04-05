@@ -164,7 +164,7 @@ class _AudioIndicatorState extends State<_AudioIndicator>
     final color = Theme.of(context).colorScheme.primary;
     return AnimatedBuilder(
       animation: _anim,
-      builder: (_, __) {
+      builder: (context, child) {
         return CustomPaint(
           size: const Size(140, 140),
           painter: _WavePainter(
@@ -212,7 +212,7 @@ class _WavePainter extends CustomPainter {
     for (int i = 1; i <= 3; i++) {
       final radius = 30.0 + i * 14 + progress * 6;
       paint
-        ..color = color.withOpacity((1.0 - (i * 0.25)) * progress)
+        ..color = color.withValues(alpha: (1.0 - (i * 0.25)) * progress)
         ..style = PaintingStyle.stroke;
       canvas.drawCircle(Offset(cx, cy), radius, paint);
     }
