@@ -1,10 +1,9 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
-import 'package:network_info_plus/network_info_plus.dart';
 import 'package:qr_flutter/qr_flutter.dart';
-import '../services/signaling_service.dart';
-import '../services/webrtc_service.dart';
+import '../services/audio_relay_service.dart';
 import 'connected_screen.dart';
 
 class QrScreen extends StatefulWidget {
@@ -20,9 +19,9 @@ class _QrScreenState extends State<QrScreen> {
   String? _statusMsg;
   bool _connecting = false;
   bool _scanned = false;
+  bool _navigatedToConnected = false;
 
-  final _signalingServer = SignalingServer();
-  WebRtcService? _webrtc;
+  AudioRelayService? _audioService;
 
   @override
   void initState() {
@@ -30,39 +29,56 @@ class _QrScreenState extends State<QrScreen> {
     if (widget.isHost) _startHost();
   }
 
-  Future<void> _startHost() async {
-    setState(() => _statusMsg = 'Iniciando...');
-
-    await _signalingServer.start();
-
-    final ip = await NetworkInfo().getWifiIP();
-    if (ip == null) {
-      setState(() => _statusMsg = 'No se pudo obtener IP WiFi.\nActiva el hotspot e intenta de nuevo.');
-      return;
+  Future<String?> _getLocalIp() async {
+    try {
+      final interfaces = await NetworkInterface.list(
+        type: InternetAddressType.IPv4,
+        includeLoopback: false,
+      );
+      String? fallback;
+      for (final iface in interfaces) {
+        for (final addr in iface.addresses) {
+          final ip = addr.address;
+          if (ip.startsWith('192.168.43.')) return ip;
+          if (ip.startsWith('192.168.') || ip.startsWith('10.')) fallback = ip;
+        }
+      }
+      return fallback;
+    } catch (_) {
+      return null;
     }
-
-    final service = WebRtcService.host(signalingServer: _signalingServer);
-    _webrtc = service;
-    await service.init();
-    await service.createOffer();
-
-    final payload = jsonEncode({'ip': ip, 'port': SignalingServer.port});
-    setState(() {
-      _qrData = payload;
-      _statusMsg = 'Muestra este QR al copiloto';
-    });
-
-    _waitForClient();
   }
 
-  Future<void> _waitForClient() async {
-    setState(() => _statusMsg = 'Esperando que el copiloto escanee...');
-    final ok = await _webrtc!.waitForAnswer();
-    if (!mounted) return;
-    if (ok) {
-      _goToConnected();
-    } else {
-      setState(() => _statusMsg = 'Tiempo agotado. Vuelve a intentar.');
+  Future<void> _startHost() async {
+    try {
+      setState(() => _statusMsg = 'Buscando red...');
+
+      final ip = await _getLocalIp();
+      if (ip == null) {
+        setState(() => _statusMsg = 'Sin red WiFi o hotspot.\nActiva el hotspot e intenta de nuevo.');
+        return;
+      }
+
+      setState(() => _statusMsg = 'Iniciando micrófono...');
+      _audioService = AudioRelayService();
+      await _audioService!.init().timeout(
+        const Duration(seconds: 10),
+        onTimeout: () => throw Exception('Timeout al iniciar micrófono'),
+      );
+
+      await _audioService!.startHost();
+
+      if (!mounted) return;
+      setState(() {
+        _qrData = jsonEncode({'ip': ip, 'port': AudioRelayService.port});
+        _statusMsg = 'Muestra este QR al copiloto';
+      });
+
+      _audioService!.connectionState.firstWhere((c) => c).then((_) {
+        if (mounted && !_navigatedToConnected) _goToConnected();
+      });
+    } catch (e) {
+      if (mounted) setState(() => _statusMsg = 'Error: $e\n\nVuelve e intenta de nuevo.');
     }
   }
 
@@ -88,38 +104,45 @@ class _QrScreenState extends State<QrScreen> {
       _statusMsg = 'Conectando con $ip...';
     });
 
-    final sigClient = SignalingClient(hostIp: ip, hostPort: port);
-    final service = WebRtcService.client(signalingClient: sigClient);
-    _webrtc = service;
+    try {
+      _audioService = AudioRelayService();
+      await _audioService!.init();
+      final ok = await _audioService!.connectToHost(ip);
 
-    await service.init();
-    final ok = await service.connectToHost();
-
-    if (!mounted) return;
-    if (ok) {
-      _goToConnected();
-    } else {
+      if (!mounted) return;
+      if (ok) {
+        _goToConnected();
+      } else {
+        setState(() {
+          _scanned = false;
+          _connecting = false;
+          _statusMsg = 'No se pudo conectar. Intenta de nuevo.';
+        });
+        await _audioService?.dispose();
+        _audioService = null;
+      }
+    } catch (e) {
+      if (!mounted) return;
       setState(() {
         _scanned = false;
         _connecting = false;
-        _statusMsg = 'No se pudo conectar. Intenta de nuevo.';
+        _statusMsg = 'Error: $e';
       });
     }
   }
 
   void _goToConnected() {
+    _navigatedToConnected = true;
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(
-        builder: (_) => ConnectedScreen(webrtc: _webrtc!),
+        builder: (_) => ConnectedScreen(audio: _audioService!),
       ),
     );
   }
 
   @override
   void dispose() {
-    if (_webrtc == null) {
-      _signalingServer.stop();
-    }
+    if (!_navigatedToConnected) _audioService?.dispose();
     super.dispose();
   }
 
@@ -144,10 +167,15 @@ class _QrScreenState extends State<QrScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const CircularProgressIndicator(),
-            const SizedBox(height: 16),
-            Text(_statusMsg ?? '', textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodyLarge),
+            if (_statusMsg != null && _statusMsg!.startsWith('Error'))
+              Text(_statusMsg!, textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.redAccent))
+            else ...[
+              const CircularProgressIndicator(),
+              const SizedBox(height: 16),
+              Text(_statusMsg ?? '', textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodyLarge),
+            ],
           ],
         ),
       );
@@ -177,14 +205,11 @@ class _QrScreenState extends State<QrScreen> {
           ),
         ),
         const Spacer(),
-        if (_connecting)
-          const Center(child: CircularProgressIndicator())
-        else
-          Text(
-            _statusMsg ?? '',
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
+        Text(
+          'Esperando al copiloto...',
+          textAlign: TextAlign.center,
+          style: Theme.of(context).textTheme.bodyMedium,
+        ),
       ],
     );
   }
@@ -208,7 +233,7 @@ class _QrScreenState extends State<QrScreen> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(
-          _statusMsg ?? 'Apunta la camara al QR del piloto',
+          _statusMsg ?? 'Apunta la cámara al QR del piloto',
           textAlign: TextAlign.center,
           style: Theme.of(context).textTheme.bodyLarge,
         ),
@@ -216,20 +241,17 @@ class _QrScreenState extends State<QrScreen> {
         Expanded(
           child: ClipRRect(
             borderRadius: BorderRadius.circular(16),
-            child: MobileScanner(
-              onDetect: _onQrDetected,
-            ),
+            child: MobileScanner(onDetect: _onQrDetected),
           ),
         ),
-        const SizedBox(height: 16),
-        if (_statusMsg != null && !_connecting)
+        if (_statusMsg != null && !_connecting) ...[
+          const SizedBox(height: 16),
           Text(
             _statusMsg!,
             textAlign: TextAlign.center,
-            style: TextStyle(
-              color: Theme.of(context).colorScheme.primary,
-            ),
+            style: TextStyle(color: Theme.of(context).colorScheme.primary),
           ),
+        ],
       ],
     );
   }

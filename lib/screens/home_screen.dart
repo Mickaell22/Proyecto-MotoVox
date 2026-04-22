@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:share_plus/share_plus.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import '../services/license_service.dart';
+import '../services/apk_share_service.dart';
 import 'qr_screen.dart';
 import 'expired_screen.dart';
 import 'settings_screen.dart';
@@ -63,19 +63,38 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  static const _channel = MethodChannel('com.motovox.motovox/app');
+  final _apkShare = ApkShareService();
 
   Future<void> _shareApp() async {
-    try {
-      final apkPath = await _channel.invokeMethod<String>('getApkPath');
-      if (apkPath == null) return;
-      await Share.shareXFiles(
-        [XFile(apkPath, mimeType: 'application/vnd.android.package-archive')],
-        text: 'MotoVox — intercomunicador para moto sin internet.',
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const AlertDialog(
+        content: Row(children: [
+          CircularProgressIndicator(),
+          SizedBox(width: 16),
+          Text('Iniciando servidor...'),
+        ]),
+      ),
+    );
+
+    final ok = await _apkShare.start();
+    if (!mounted) return;
+    Navigator.of(context).pop();
+
+    if (!ok) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Activa el hotspot e intenta de nuevo')),
       );
-    } catch (_) {
-      Share.share('MotoVox — intercomunicador para moto sin internet.');
+      return;
     }
+
+    await showDialog(
+      context: context,
+      builder: (_) => _ApkShareDialog(url: _apkShare.shareUrl!),
+    );
+
+    await _apkShare.stop();
   }
 
   void _onLogoTap() {
@@ -237,4 +256,50 @@ class _HelmetPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_HelmetPainter old) => old.color != color;
+}
+
+class _ApkShareDialog extends StatelessWidget {
+  final String url;
+  const _ApkShareDialog({required this.url});
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Descargar MotoVox'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text(
+            'Conectate al hotspot y abre este QR en el navegador',
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: QrImageView(
+              data: url,
+              size: 220,
+              backgroundColor: Colors.white,
+            ),
+          ),
+          const SizedBox(height: 12),
+          SelectableText(
+            url,
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 12),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('CERRAR'),
+        ),
+      ],
+    );
+  }
 }

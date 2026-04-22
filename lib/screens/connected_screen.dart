@@ -1,34 +1,33 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter_webrtc/flutter_webrtc.dart';
-import '../services/webrtc_service.dart';
+import '../services/audio_relay_service.dart';
 import '../theme.dart';
 
 class ConnectedScreen extends StatefulWidget {
-  final WebRtcService webrtc;
-  const ConnectedScreen({super.key, required this.webrtc});
+  final AudioRelayService audio;
+  const ConnectedScreen({super.key, required this.audio});
 
   @override
   State<ConnectedScreen> createState() => _ConnectedScreenState();
 }
 
 class _ConnectedScreenState extends State<ConnectedScreen> {
-  RTCPeerConnectionState _state = RTCPeerConnectionState.RTCPeerConnectionStateConnecting;
+  bool _connected = true;
   StreamSubscription? _sub;
   bool _muted = false;
 
   @override
   void initState() {
     super.initState();
-    _sub = widget.webrtc.connectionState.listen((state) {
-      if (mounted) setState(() => _state = state);
+    _sub = widget.audio.connectionState.listen((state) {
+      if (mounted) setState(() => _connected = state);
     });
   }
 
   @override
   void dispose() {
     _sub?.cancel();
-    widget.webrtc.dispose();
+    widget.audio.dispose();
     super.dispose();
   }
 
@@ -38,40 +37,12 @@ class _ConnectedScreenState extends State<ConnectedScreen> {
 
   void _toggleMute() {
     setState(() => _muted = !_muted);
-    widget.webrtc.setMuted(_muted);
+    widget.audio.setMuted(_muted);
   }
 
-  bool get _isConnected =>
-      _state == RTCPeerConnectionState.RTCPeerConnectionStateConnected;
-
-  String get _statusLabel {
-    switch (_state) {
-      case RTCPeerConnectionState.RTCPeerConnectionStateConnected:
-        return 'Conectado';
-      case RTCPeerConnectionState.RTCPeerConnectionStateConnecting:
-        return 'Conectando...';
-      case RTCPeerConnectionState.RTCPeerConnectionStateFailed:
-        return 'Fallo la conexion';
-      case RTCPeerConnectionState.RTCPeerConnectionStateDisconnected:
-        return 'Desconectado';
-      case RTCPeerConnectionState.RTCPeerConnectionStateClosed:
-        return 'Cerrado';
-      default:
-        return 'Verificando...';
-    }
-  }
-
-  Color _statusColor(BuildContext context) {
-    switch (_state) {
-      case RTCPeerConnectionState.RTCPeerConnectionStateConnected:
-        return Colors.greenAccent;
-      case RTCPeerConnectionState.RTCPeerConnectionStateFailed:
-      case RTCPeerConnectionState.RTCPeerConnectionStateDisconnected:
-        return Colors.redAccent;
-      default:
-        return AppColors.orange;
-    }
-  }
+  String get _statusLabel => _connected ? 'Conectado' : 'Desconectado';
+  Color _statusColor(BuildContext ctx) =>
+      _connected ? Colors.greenAccent : Colors.redAccent;
 
   @override
   Widget build(BuildContext context) {
@@ -87,9 +58,7 @@ class _ConnectedScreenState extends State<ConnectedScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const Spacer(),
-              Center(
-                child: _AudioIndicator(active: _isConnected),
-              ),
+              Center(child: _AudioIndicator(active: _connected && !_muted)),
               const SizedBox(height: 32),
               Center(
                 child: Text(
@@ -101,10 +70,10 @@ class _ConnectedScreenState extends State<ConnectedScreen> {
                   ),
                 ),
               ),
-              if (_isConnected) ...[
+              if (_connected) ...[
                 const SizedBox(height: 8),
                 Text(
-                  _muted ? 'Microfono silenciado' : 'Audio activo — sin push-to-talk',
+                  _muted ? 'Micrófono silenciado' : 'Audio activo — sin push-to-talk',
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.bodyMedium,
                 ),
@@ -113,7 +82,7 @@ class _ConnectedScreenState extends State<ConnectedScreen> {
               OutlinedButton.icon(
                 onPressed: _toggleMute,
                 icon: Icon(_muted ? Icons.mic_off : Icons.mic),
-                label: Text(_muted ? 'ACTIVAR MICROFONO' : 'SILENCIAR'),
+                label: Text(_muted ? 'ACTIVAR MICRÓFONO' : 'SILENCIAR'),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: _muted ? Colors.redAccent : AppColors.orange,
                   side: BorderSide(
@@ -211,7 +180,6 @@ class _WavePainter extends CustomPainter {
       ..strokeWidth = 3
       ..strokeCap = StrokeCap.round;
 
-    // Icono de microfono central
     final micPaint = Paint()
       ..color = color
       ..style = PaintingStyle.fill;
@@ -227,7 +195,6 @@ class _WavePainter extends CustomPainter {
 
     if (progress == 0) return;
 
-    // Ondas animadas
     for (int i = 1; i <= 3; i++) {
       final radius = 30.0 + i * 14 + progress * 6;
       paint
