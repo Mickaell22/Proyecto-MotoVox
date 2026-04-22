@@ -36,10 +36,10 @@ class WebRtcService {
         server = null,
         client = signalingClient;
 
+  // Sin STUN externo — la app funciona sobre hotspot local sin internet.
+  // WebRTC usa host candidates (IPs locales) que son suficientes en la misma red.
   static const _iceServers = {
-    'iceServers': [
-      {'urls': 'stun:stun.l.google.com:19302'},
-    ],
+    'iceServers': <Map<String, dynamic>>[],
   };
 
   static const _constraints = {
