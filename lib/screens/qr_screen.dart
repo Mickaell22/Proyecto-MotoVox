@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../services/audio_relay_service.dart';
+import '../services/room_discovery_service.dart';
 import 'connected_screen.dart';
 
 class QrScreen extends StatefulWidget {
@@ -22,6 +23,8 @@ class _QrScreenState extends State<QrScreen> {
   bool _navigatedToConnected = false;
 
   AudioRelayService? _audioService;
+  final _discovery = RoomDiscoveryService();
+  String? _roomId;
 
   @override
   void initState() {
@@ -67,11 +70,20 @@ class _QrScreenState extends State<QrScreen> {
       );
 
       await _audioService!.startHost();
+      final audioPort = _audioService!.actualPort;
+
+      _roomId = RoomDiscoveryService.generateId();
+      await _discovery.startAdvertising(
+        id: _roomId!,
+        name: 'MotoVox',
+        ip: ip,
+        port: audioPort,
+      );
 
       if (!mounted) return;
       setState(() {
-        _qrData = jsonEncode({'ip': ip, 'port': AudioRelayService.port});
-        _statusMsg = 'Muestra este QR al copiloto';
+        _qrData = jsonEncode({'ip': ip, 'port': audioPort});
+        _statusMsg = 'Sala activa — esperando al copiloto';
       });
 
       _audioService!.connectionState.firstWhere((c) => c).then((_) {
@@ -107,7 +119,7 @@ class _QrScreenState extends State<QrScreen> {
     try {
       _audioService = AudioRelayService();
       await _audioService!.init();
-      final ok = await _audioService!.connectToHost(ip);
+      final ok = await _audioService!.connectToHost(ip, port: port);
 
       if (!mounted) return;
       if (ok) {
@@ -132,6 +144,7 @@ class _QrScreenState extends State<QrScreen> {
   }
 
   void _goToConnected() {
+    _discovery.stopAdvertising();
     _navigatedToConnected = true;
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(
@@ -142,7 +155,10 @@ class _QrScreenState extends State<QrScreen> {
 
   @override
   void dispose() {
-    if (!_navigatedToConnected) _audioService?.dispose();
+    if (!_navigatedToConnected) {
+      _audioService?.dispose();
+      _discovery.stopAdvertising();
+    }
     super.dispose();
   }
 

@@ -15,19 +15,22 @@ App de intercomunicador para moto — piloto y copiloto, siempre abierto (sin pu
 
 ## Flujo de conexión (UX)
 ```
-Piloto                          Copiloto
-  |                                 |
-toca "Crear"                        |
-aparece QR en pantalla              |
-  |                      toca "Unirse"
-  |                      escanea QR--|
-  |<========= audio activo ========>|
+Piloto                              Copiloto
+  |                                     |
+toca "Crear sala"                        |
+sala anunciada por UDP                   |
+QR visible como fallback                 |
+  |                          toca "Unirse"
+  |                          ve la sala en lista
+  |                          toca la sala --------|
+  |<============= audio activo =================>|
 ```
 
 ## Pantallas
 1. **Inicio** — dos botones: "Crear sala" / "Unirse" + botón "Compartir app"
-2. **QR** — muestra el QR (Host) o abre cámara (Cliente)
-3. **Conectado** — estado de conexión, animación de audio, botón silenciar, botón desconectar
+2. **QR** (host) — muestra QR + anuncia sala por UDP. (cliente) — escanea QR como fallback
+3. **Salas disponibles** — lista de salas detectadas en la red, tap para conectar, botón "Escanear QR" al fondo
+4. **Conectado** — estado de conexión, animación de audio, botón silenciar, botón desconectar
 
 ## Dispositivos de prueba
 - 2 teléfonos Android (ADB ID: `103953736M000152`)
@@ -71,35 +74,47 @@ dependencies:
 
 ## Arquitectura actual
 ```
-Teléfono A (host/piloto)       Teléfono B (cliente/copiloto)
-  crea hotspot     <--WiFi-->    se conecta al hotspot
-  ServerSocket:8766              Socket.connect(:8766)
-  muestra QR {ip,port}           escanea QR
+Teléfono A (host/piloto)          Teléfono B (cliente/copiloto)
+  crea hotspot     <--WiFi-->       se conecta al hotspot
+  ServerSocket:puerto_dinámico      UDP escucha :8767
+  UDP broadcast :8767 cada 2s  -->  ve sala en lista
+  muestra QR (fallback)             tap sala → Socket.connect(ip, puerto)
        <-------- audio PCM16 por TCP ------->
 ```
 
 ### AudioRelayService (lib/services/audio_relay_service.dart)
-- Puerto TCP: `8766`
+- Puerto TCP: **dinámico** — el SO asigna uno libre con `bind(0)`. `actualPort` expone el puerto asignado.
 - Formato: PCM16, 16000 Hz, mono
 - Graba con `FlutterSoundRecorder` → stream `Uint8List` → envía por socket
 - Recibe datos del socket → `_player.uint8ListSink`
-- `AudioSource.voice_communication` — intenta activar AEC hardware de Android
+- `AudioSource.voice_communication` — activa AEC hardware de Android
 - `enableVoiceProcessing`, `enableNoiseSuppression`, `enableEchoCancellation: true`
 
-## Estado actual (2026-04-22) ✓
+### RoomDiscoveryService (lib/services/room_discovery_service.dart)
+- Puerto UDP discovery: `8767`
+- Host: broadcast UDP a `255.255.255.255:8767` cada 2s con `{id, name, ip, port}`
+- Cliente: escucha `0.0.0.0:8767`, construye lista de `RoomInfo`, expira salas a los 7s sin señal
+- Soporta múltiples salas simultáneas en la misma red (cada una con puerto TCP distinto)
+
+## Estado actual (2026-04-26) ✓
 - **Conexión y transmisión de voz funcionando** — 2 teléfonos por hotspot, sin internet
 - **Supresión de ruido activa** — `AudioSource.voice_communication` + flags de AEC/NS confirmados funcionando (pendiente prueba a fondo en moto con ruido real)
+- **Descubrimiento automático de salas** — UDP broadcast; el copiloto ve la sala en lista sin escanear QR
+- **Múltiples salas simultáneas** — puertos TCP dinámicos, cada sala independiente
+- **QR como fallback** — sigue disponible en la pantalla del host
 - `NetworkInterface.list()` prioriza `192.168.43.x` (subred de hotspot Android), luego `192.168.x` / `10.x`
 
 ## Pendiente
 - Probar calidad de audio y supresión de ruido en condiciones reales (moto en movimiento, ruido de viento/motor)
 - Latencia — no medida todavía
 - Prueba de estabilidad conexión larga duración
+- Nombre de sala personalizable (actualmente "MotoVox" fijo)
 
 ## Decisiones de arquitectura
 - **Se abandonó WebRTC**: UDP bloqueado en la interfaz AP de hotspot Android. TCP funciona siempre entre AP y cliente.
 - **Sin push-to-talk** — distrae al conductor; siempre abierto como intercomunicador real
-- **Conexión por QR** — sin tipear IP manualmente
+- **Descubrimiento por UDP broadcast** — sin tipear IP ni escanear QR; el QR queda de fallback
+- **Puertos TCP dinámicos** — cada sala usa el puerto que el SO asigne, permite múltiples salas en red
 - **Scope inicial**: solo piloto + copiloto (1 a 1)
 - **flutter_webrtc eliminado** del proyecto — `webrtc_service.dart` y `signaling_service.dart` borrados
 

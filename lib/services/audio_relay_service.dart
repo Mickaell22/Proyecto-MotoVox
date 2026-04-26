@@ -4,7 +4,6 @@ import 'dart:typed_data';
 import 'package:flutter_sound/flutter_sound.dart';
 
 class AudioRelayService {
-  static const int port = 8766;
   static const int _sampleRate = 16000;
   static const int _numChannels = 1;
   static const int _bufferSize = 4096;
@@ -17,6 +16,9 @@ class AudioRelayService {
   StreamController<Uint8List>? _recorderStream;
   bool _muted = false;
 
+  int _actualPort = 0;
+  int get actualPort => _actualPort;
+
   final _stateController = StreamController<bool>.broadcast();
   Stream<bool> get connectionState => _stateController.stream;
 
@@ -26,7 +28,8 @@ class AudioRelayService {
   }
 
   Future<void> startHost() async {
-    _serverSocket = await ServerSocket.bind(InternetAddress.anyIPv4, port);
+    _serverSocket = await ServerSocket.bind(InternetAddress.anyIPv4, 0);
+    _actualPort = _serverSocket!.port;
     _serverSocket!.listen(
       (socket) async {
         socket.setOption(SocketOption.tcpNoDelay, true);
@@ -37,7 +40,7 @@ class AudioRelayService {
     );
   }
 
-  Future<bool> connectToHost(String hostIp) async {
+  Future<bool> connectToHost(String hostIp, {int port = 8766}) async {
     try {
       final socket = await Socket.connect(
         hostIp, port,

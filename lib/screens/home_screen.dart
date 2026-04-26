@@ -4,6 +4,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 import '../services/license_service.dart';
 import '../services/apk_share_service.dart';
 import 'qr_screen.dart';
+import 'rooms_screen.dart';
 import 'expired_screen.dart';
 import 'settings_screen.dart';
 
@@ -59,7 +60,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _goToJoin() {
     Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const QrScreen(isHost: false)),
+      MaterialPageRoute(builder: (_) => const RoomsScreen()),
     );
   }
 
