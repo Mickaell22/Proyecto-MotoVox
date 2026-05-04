@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import '../services/license_service.dart';
+import '../theme.dart';
+import '../widgets/mv_widgets.dart';
 import 'audio_test_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -13,6 +16,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _unlocked = false;
   int _daysRemaining = 0;
   bool _loading = true;
+  String _appVersion = '';
 
   final _codeController = TextEditingController();
   bool _codeError = false;
@@ -25,12 +29,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _loadStatus() async {
-    final unlocked = await LicenseService.isUnlocked();
-    final days = await LicenseService.daysRemaining();
+    final results = await Future.wait([
+      LicenseService.isUnlocked(),
+      LicenseService.daysRemaining(),
+      PackageInfo.fromPlatform(),
+    ]);
     if (mounted) {
       setState(() {
-        _unlocked = unlocked;
-        _daysRemaining = days;
+        _unlocked = results[0] as bool;
+        _daysRemaining = results[1] as int;
+        _appVersion = (results[2] as PackageInfo).version;
         _loading = false;
       });
     }
@@ -69,89 +77,86 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('CONFIGURACION')),
+      appBar: MvAppBar(
+        title: 'Configuración',
+        onBack: () => Navigator.of(context).pop(),
+      ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(
+              child: CircularProgressIndicator(color: AppColors.orange))
           : ListView(
-              padding: const EdgeInsets.all(24),
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
               children: [
-                _SectionTitle('Licencia'),
-                _InfoTile(
-                  icon: _unlocked ? Icons.lock_open : Icons.lock_outline,
-                  label: 'Estado',
-                  value: _unlocked
-                      ? 'Desbloqueado'
-                      : _daysRemaining > 0
-                          ? '$_daysRemaining dias de prueba restantes'
-                          : 'Prueba vencida',
-                  valueColor: _unlocked
-                      ? Colors.greenAccent
-                      : _daysRemaining > 3
-                          ? null
-                          : Colors.redAccent,
-                ),
-                if (!_unlocked) ...[
-                  const SizedBox(height: 24),
-                  _SectionTitle('Desbloquear'),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: _codeController,
-                    obscureText: true,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(letterSpacing: 4, fontSize: 18),
-                    decoration: InputDecoration(
-                      hintText: 'Codigo de administrador',
-                      errorText: _codeError ? 'Codigo incorrecto' : null,
-                      border: const OutlineInputBorder(),
-                      enabledBorder: OutlineInputBorder(
-                        borderSide: BorderSide(
-                          color: Theme.of(context).colorScheme.primary,
-                          width: 2,
-                        ),
-                      ),
+                // ── Licencia ────────────────────────────────────────────────
+                _SectionHeader('Licencia'),
+                _SettingsCard(
+                  children: [
+                    _LicenseTile(
+                      unlocked: _unlocked,
+                      days: _daysRemaining,
                     ),
-                    onSubmitted: (_) => _tryUnlock(),
-                  ),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: _unlocking ? null : _tryUnlock,
-                    child: _unlocking
-                        ? const SizedBox(
-                            height: 24,
-                            width: 24,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Text('DESBLOQUEAR'),
+                  ],
+                ),
+
+                // ── Desbloquear ─────────────────────────────────────────────
+                if (!_unlocked) ...[
+                  const SizedBox(height: 20),
+                  _SectionHeader('Desbloquear'),
+                  _SettingsCard(
+                    padding: const EdgeInsets.all(16),
+                    children: [
+                      TextField(
+                        controller: _codeController,
+                        obscureText: true,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          letterSpacing: 4,
+                          fontSize: 16,
+                          color: Colors.white,
+                        ),
+                        decoration: InputDecoration(
+                          hintText: 'Código de administrador',
+                          errorText: _codeError ? 'Código incorrecto' : null,
+                        ),
+                        onSubmitted: (_) => _tryUnlock(),
+                      ),
+                      const SizedBox(height: 12),
+                      PrimaryBtn(
+                        label: 'Desbloquear',
+                        onPressed: _unlocking ? null : _tryUnlock,
+                        loading: _unlocking,
+                      ),
+                    ],
                   ),
                 ],
-                const SizedBox(height: 32),
-                _SectionTitle('Audio'),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: Icon(
-                    Icons.mic_none,
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
-                  title: const Text('Test de micrófono'),
-                  subtitle: const Text('Graba 5 segundos y escucha cómo suenan'),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => const AudioTestScreen(),
+
+                // ── Audio ───────────────────────────────────────────────────
+                const SizedBox(height: 20),
+                _SectionHeader('Audio'),
+                _SettingsCard(
+                  children: [
+                    _ActionTile(
+                      icon: Icons.mic_none,
+                      title: 'Test de micrófono',
+                      subtitle: 'Graba 5 s y escucha cómo suenan',
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                            builder: (_) => const AudioTestScreen()),
+                      ),
                     ),
-                  ),
+                  ],
                 ),
-                const SizedBox(height: 32),
-                _SectionTitle('Acerca de'),
-                _InfoTile(
-                  icon: Icons.info_outline,
-                  label: 'Version',
-                  value: '1.0.0',
-                ),
-                _InfoTile(
-                  icon: Icons.headset,
-                  label: 'MotoVox',
-                  value: 'Intercomunicador para moto',
+
+                // ── Acerca de ───────────────────────────────────────────────
+                const SizedBox(height: 20),
+                _SectionHeader('Acerca de'),
+                _SettingsCard(
+                  children: [
+                    _InfoRow(label: 'Versión', value: _appVersion),
+                    _Divider(),
+                    _InfoRow(
+                        label: 'MotoVox', value: 'Intercomunicador para moto'),
+                  ],
                 ),
               ],
             ),
@@ -159,53 +164,237 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 }
 
-class _SectionTitle extends StatelessWidget {
+// ─── Componentes de configuración ────────────────────────────────────────────
+
+class _SectionHeader extends StatelessWidget {
   final String text;
-  const _SectionTitle(this.text);
+  const _SectionHeader(this.text);
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.only(bottom: 10),
       child: Text(
         text.toUpperCase(),
-        style: TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.bold,
-          letterSpacing: 1.5,
-          color: Theme.of(context).colorScheme.primary,
+        style: const TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 2,
+          color: AppColors.orange,
         ),
       ),
     );
   }
 }
 
-class _InfoTile extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String value;
-  final Color? valueColor;
+class _SettingsCard extends StatelessWidget {
+  final List<Widget> children;
+  final EdgeInsets? padding;
 
-  const _InfoTile({
+  const _SettingsCard({required this.children, this.padding});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.darkCard,
+        border: Border.all(color: AppColors.border),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      padding: padding,
+      child: Column(
+        children: children,
+      ),
+    );
+  }
+}
+
+class _LicenseTile extends StatelessWidget {
+  final bool unlocked;
+  final int days;
+
+  const _LicenseTile({required this.unlocked, required this.days});
+
+  @override
+  Widget build(BuildContext context) {
+    final statusText = unlocked
+        ? 'Desbloqueado'
+        : days > 0
+            ? 'Versión de prueba'
+            : 'Prueba vencida';
+
+    final valueText = unlocked
+        ? 'Activo'
+        : days > 0
+            ? '$days días'
+            : 'Vencida';
+
+    final valueColor = unlocked
+        ? AppColors.green
+        : days > 3
+            ? AppColors.orange
+            : AppColors.red;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      child: Row(
+        children: [
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: AppColors.orangeDim,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(
+              unlocked ? Icons.lock_open_outlined : Icons.lock_outline,
+              color: AppColors.orange,
+              size: 17,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Estado',
+                  style: TextStyle(
+                    color: AppColors.white70,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  statusText,
+                  style: const TextStyle(
+                    color: AppColors.white40,
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Text(
+            valueText,
+            style: TextStyle(
+              color: valueColor,
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ActionTile extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  const _ActionTile({
     required this.icon,
-    required this.label,
-    required this.value,
-    this.valueColor,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      leading: Icon(icon, color: Theme.of(context).colorScheme.primary),
-      title: Text(label, style: Theme.of(context).textTheme.bodyMedium),
-      trailing: Text(
-        value,
-        style: TextStyle(
-          fontWeight: FontWeight.bold,
-          color: valueColor ?? Theme.of(context).textTheme.bodyLarge?.color,
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        child: Row(
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: AppColors.orangeDim,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, color: AppColors.orange, size: 17),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      color: AppColors.white70,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      color: AppColors.white40,
+                      fontSize: 11,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right, color: AppColors.white40, size: 16),
+          ],
         ),
       ),
+    );
+  }
+}
+
+class _InfoRow extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _InfoRow({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              style: const TextStyle(
+                color: AppColors.white70,
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          Text(
+            value,
+            style: const TextStyle(
+              color: AppColors.white40,
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _Divider extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 1,
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      color: AppColors.border,
     );
   }
 }

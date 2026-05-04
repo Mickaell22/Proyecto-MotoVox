@@ -35,7 +35,7 @@ QR visible como fallback                 |
 
 ## Dispositivos de prueba
 - 2 teléfonos Android (ADB ID: `103953736M000152`)
-- Entorno de build: `/home/mickaell/Desktop/MotoVox`
+- Entorno de build: `/home/mickaell/Desktop/Proyectos de MICKAELL/MotoVox`
 - Flutter: `/opt/flutter/bin/flutter`
 - ADB: `/home/mickaell/Android/Sdk/platform-tools/adb`
 
@@ -107,7 +107,7 @@ Teléfono A (host/piloto)          Teléfono B (cliente/copiloto)
 - Cliente: escucha `0.0.0.0:8767`, construye lista de `RoomInfo`, expira salas a los 7s sin señal
 - Soporta múltiples salas simultáneas en la misma red (cada una con puerto TCP distinto)
 
-## Estado actual (2026-05-03) ✓
+## Estado actual (2026-05-04) ✓
 - **Conexión y transmisión de voz funcionando** — 2 teléfonos por hotspot, sin internet
 - **Supresión de ruido activa** — `AudioSource.voice_communication` + flags de AEC/NS confirmados funcionando
 - **Descubrimiento automático de salas** — UDP broadcast; el copiloto ve la sala en lista sin escanear QR
@@ -116,13 +116,21 @@ Teléfono A (host/piloto)          Teléfono B (cliente/copiloto)
 - **Test de audio** — graba 5 segundos y reproduce (acceso en Configuración → Audio)
 - **Filtro bandpass por software** — biquad 300 Hz–3400 Hz; elimina ruido fuera del rango de voz
 - `NetworkInterface.list()` prioriza `192.168.43.x` (subred de hotspot Android)
+- **Rediseño visual completo** — implementado desde prototipo hi-fi (2026-05-04):
+  - Tokens: bg `#0A0A0A`, surface `#141414`, card `#1C1C1C`, border `#282828`
+  - `lib/widgets/mv_widgets.dart` — componentes compartidos: `MvAppBar`, `StatusPill`, `PrimaryBtn`, `OutlineBtn`, `SignalBars`, `HelmetWidget`, `PulseRings`, `AudioBarsWidget`
+  - Casco vectorial fiel al diseño SVG con ondas de radio animadas
+  - Pantalla conectado: barras de audio animadas (12 barras), timer MM:SS con glow naranja, anillos de pulso
+  - Pantalla salas: cards con icono naranja, barras de señal, indicador pulsante
+  - Pantalla QR scanner: guías de esquina naranjas + línea de escaneo animada
+  - Configuración: secciones en cards con iconos en contenedores redondeados
+  - Pantalla vencida: círculo rojo con icono de advertencia
 
 ## Pendiente
-- **RNNoise Fase 3/4** — procesador de frames, integración (ver Roadmap)
-- **Versioning** — nunca se ha gestionado; el app real está en `1.2.0` pero pubspec dice `1.0.0+1`
+- **RNNoise Fase 3/4** — procesador de frames, integración (ver Roadmap) ← **PRÓXIMA SESIÓN**
+- **Versioning** — pubspec dice `1.0.0+1`, bumpar a `1.2.0+3` + agregar `package_info_plus` ← **PRÓXIMA SESIÓN**
   - Agregar `package_info_plus` y leer versión dinámicamente en `settings_screen.dart`
   - Esquema: MINOR por feature nueva, PATCH por bug fix
-  - Bumpar a `1.2.0+3` al iniciar la próxima sesión
 - Probar calidad de audio en condiciones reales (moto en movimiento)
 - Latencia — no medida todavía
 - Prueba de estabilidad conexión larga duración

@@ -1,14 +1,23 @@
 import 'package:flutter/material.dart';
 
 class AppColors {
-  // Acento principal — naranja faro
   static const orange = Color(0xFFFF6D00);
   static const orangeDark = Color(0xFFE65100);
+  static const orangeDim = Color(0x26FF6D00);  // 15% opacity
+  static const orangeGlow = Color(0x4DFF6D00); // 30% opacity
 
-  // Tema oscuro (noche)
   static const darkBg = Color(0xFF0A0A0A);
-  static const darkSurface = Color(0xFF1C1C1C);
-  static const darkCard = Color(0xFF2A2A2A);
+  static const darkSurface = Color(0xFF141414);
+  static const darkCard = Color(0xFF1C1C1C);
+  static const border = Color(0xFF282828);
+
+  static const white70 = Color(0xB3FFFFFF);
+  static const white40 = Color(0x66FFFFFF);
+  static const white12 = Color(0x12FFFFFF);
+
+  static const green = Color(0xFF00E676);
+  static const red = Color(0xFFFF5252);
+  static const redDim = Color(0x26FF5252);
 
   // Tema claro (exterior / sol directo)
   static const lightBg = Color(0xFFF5F5F5);
@@ -32,29 +41,31 @@ class AppTheme {
           style: ElevatedButton.styleFrom(
             backgroundColor: AppColors.orange,
             foregroundColor: Colors.black,
-            minimumSize: const Size(double.infinity, 60),
+            minimumSize: const Size(double.infinity, 56),
             textStyle: const TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              letterSpacing: 1.2,
+              fontSize: 14,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1.8,
             ),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.all(Radius.circular(12)),
+            shape: const RoundedRectangleBorder(
+              borderRadius: BorderRadius.all(Radius.circular(14)),
             ),
+            elevation: 0,
+            shadowColor: Colors.transparent,
           ),
         ),
         outlinedButtonTheme: OutlinedButtonThemeData(
           style: OutlinedButton.styleFrom(
             foregroundColor: AppColors.orange,
             side: const BorderSide(color: AppColors.orange, width: 2),
-            minimumSize: const Size(double.infinity, 60),
+            minimumSize: const Size(double.infinity, 56),
             textStyle: const TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              letterSpacing: 1.2,
+              fontSize: 14,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1.8,
             ),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.all(Radius.circular(12)),
+            shape: const RoundedRectangleBorder(
+              borderRadius: BorderRadius.all(Radius.circular(14)),
             ),
           ),
         ),
@@ -65,15 +76,33 @@ class AppTheme {
           centerTitle: true,
           titleTextStyle: TextStyle(
             color: Colors.white,
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-            letterSpacing: 1.5,
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 2.5,
           ),
         ),
         textTheme: const TextTheme(
-          displayLarge: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-          bodyLarge: TextStyle(color: Colors.white70, fontSize: 16),
-          bodyMedium: TextStyle(color: Colors.white60, fontSize: 14),
+          displayLarge:
+              TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          bodyLarge: TextStyle(color: AppColors.white70, fontSize: 16),
+          bodyMedium: TextStyle(color: AppColors.white40, fontSize: 14),
+        ),
+        inputDecorationTheme: InputDecorationTheme(
+          filled: true,
+          fillColor: AppColors.darkSurface,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: const BorderSide(color: AppColors.border),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: const BorderSide(color: AppColors.border, width: 1.5),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: const BorderSide(color: AppColors.orange, width: 1.5),
+          ),
+          hintStyle: const TextStyle(color: AppColors.white40),
         ),
         useMaterial3: true,
       );
@@ -94,14 +123,14 @@ class AppTheme {
           style: ElevatedButton.styleFrom(
             backgroundColor: AppColors.orangeDark,
             foregroundColor: Colors.white,
-            minimumSize: const Size(double.infinity, 60),
+            minimumSize: const Size(double.infinity, 56),
             textStyle: const TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              letterSpacing: 1.2,
+              fontSize: 14,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1.8,
             ),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.all(Radius.circular(12)),
+            shape: const RoundedRectangleBorder(
+              borderRadius: BorderRadius.all(Radius.circular(14)),
             ),
           ),
         ),
@@ -109,14 +138,14 @@ class AppTheme {
           style: OutlinedButton.styleFrom(
             foregroundColor: AppColors.orangeDark,
             side: const BorderSide(color: AppColors.orangeDark, width: 2),
-            minimumSize: const Size(double.infinity, 60),
+            minimumSize: const Size(double.infinity, 56),
             textStyle: const TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              letterSpacing: 1.2,
+              fontSize: 14,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1.8,
             ),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.all(Radius.circular(12)),
+            shape: const RoundedRectangleBorder(
+              borderRadius: BorderRadius.all(Radius.circular(14)),
             ),
           ),
         ),
@@ -127,13 +156,14 @@ class AppTheme {
           centerTitle: true,
           titleTextStyle: TextStyle(
             color: Colors.black,
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-            letterSpacing: 1.5,
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 2.5,
           ),
         ),
         textTheme: const TextTheme(
-          displayLarge: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+          displayLarge:
+              TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
           bodyLarge: TextStyle(color: Colors.black87, fontSize: 16),
           bodyMedium: TextStyle(color: Colors.black54, fontSize: 14),
         ),

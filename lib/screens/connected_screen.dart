@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../services/audio_relay_service.dart';
 import '../theme.dart';
+import '../widgets/mv_widgets.dart';
 
 class ConnectedScreen extends StatefulWidget {
   final AudioRelayService audio;
@@ -15,6 +16,8 @@ class _ConnectedScreenState extends State<ConnectedScreen> {
   bool _connected = true;
   StreamSubscription? _sub;
   bool _muted = false;
+  int _secs = 0;
+  Timer? _timer;
 
   @override
   void initState() {
@@ -22,10 +25,14 @@ class _ConnectedScreenState extends State<ConnectedScreen> {
     _sub = widget.audio.connectionState.listen((state) {
       if (mounted) setState(() => _connected = state);
     });
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() => _secs++);
+    });
   }
 
   @override
   void dispose() {
+    _timer?.cancel();
     _sub?.cancel();
     widget.audio.dispose();
     super.dispose();
@@ -40,171 +47,140 @@ class _ConnectedScreenState extends State<ConnectedScreen> {
     widget.audio.setMuted(_muted);
   }
 
-  String get _statusLabel => _connected ? 'Conectado' : 'Desconectado';
-  Color _statusColor(BuildContext ctx) =>
-      _connected ? Colors.greenAccent : Colors.redAccent;
+  String get _timerLabel {
+    final mm = (_secs ~/ 60).toString().padLeft(2, '0');
+    final ss = (_secs % 60).toString().padLeft(2, '0');
+    return '$mm:$ss';
+  }
 
   @override
   Widget build(BuildContext context) {
+    final active = _connected && !_muted;
+
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('MOTOVOX'),
-        automaticallyImplyLeading: false,
-      ),
+      appBar: const MvAppBar(title: 'MotoVox'),
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+          padding: const EdgeInsets.symmetric(horizontal: 24),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Spacer(),
-              Center(child: _AudioIndicator(active: _connected && !_muted)),
-              const SizedBox(height: 32),
+              const SizedBox(height: 16),
+
+              // Status pill
+              Center(
+                child: StatusPill(
+                  label: _muted ? 'Silenciado' : 'Conectado',
+                  color: _muted ? AppColors.red : AppColors.green,
+                ),
+              ),
+
+              // Hero
+              Expanded(
+                child: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(
+                        width: 160,
+                        height: 160,
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            PulseRings(
+                              active: active,
+                              size: 160,
+                              baseOpacity: 0.8,
+                              duration: const Duration(milliseconds: 1800),
+                            ),
+                            AnimatedContainer(
+                              duration: const Duration(milliseconds: 300),
+                              width: 104,
+                              height: 104,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: _muted
+                                    ? AppColors.darkCard
+                                    : AppColors.orangeDim,
+                                border: Border.all(
+                                  color: _muted
+                                      ? AppColors.border
+                                      : AppColors.orange
+                                          .withValues(alpha: 0.6),
+                                  width: 2,
+                                ),
+                              ),
+                              child: Center(
+                                child: HelmetWidget(
+                                  size: 68,
+                                  animated: active,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      AudioBarsWidget(active: active),
+                      const SizedBox(height: 12),
+                      AnimatedDefaultTextStyle(
+                        duration: const Duration(milliseconds: 300),
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: _muted ? AppColors.red : AppColors.white40,
+                          letterSpacing: 1.8,
+                          fontWeight: FontWeight.w700,
+                        ),
+                        child: Text(
+                          _muted ? 'MICRÓFONO SILENCIADO' : 'SIN PUSH-TO-TALK',
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              // Timer
               Center(
                 child: Text(
-                  _statusLabel,
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    color: _statusColor(context),
+                  _timerLabel,
+                  style: const TextStyle(
+                    fontSize: 36,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                    letterSpacing: 5,
+                    shadows: [
+                      Shadow(
+                        color: AppColors.orangeGlow,
+                        blurRadius: 40,
+                      ),
+                    ],
                   ),
                 ),
               ),
-              if (_connected) ...[
-                const SizedBox(height: 8),
-                Text(
-                  _muted ? 'Micrófono silenciado' : 'Audio activo — sin push-to-talk',
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
-              ],
-              const Spacer(),
-              OutlinedButton.icon(
+              const SizedBox(height: 24),
+
+              OutlineBtn(
+                label: _muted ? 'Activar micrófono' : 'Silenciar',
+                danger: _muted,
                 onPressed: _toggleMute,
-                icon: Icon(_muted ? Icons.mic_off : Icons.mic),
-                label: Text(_muted ? 'ACTIVAR MICRÓFONO' : 'SILENCIAR'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: _muted ? Colors.redAccent : AppColors.orange,
-                  side: BorderSide(
-                    color: _muted ? Colors.redAccent : AppColors.orange,
-                    width: 2,
-                  ),
+                icon: Icon(
+                  _muted ? Icons.mic_off : Icons.mic,
+                  size: 18,
+                  color: _muted ? AppColors.red : AppColors.orange,
                 ),
+              ),
+              const SizedBox(height: 10),
+              PrimaryBtn(
+                label: 'Desconectar',
+                danger: true,
+                onPressed: _disconnect,
               ),
               const SizedBox(height: 16),
-              ElevatedButton(
-                onPressed: _disconnect,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.redAccent,
-                  foregroundColor: Colors.white,
-                ),
-                child: const Text('DESCONECTAR'),
-              ),
             ],
           ),
         ),
       ),
     );
   }
-}
-
-class _AudioIndicator extends StatefulWidget {
-  final bool active;
-  const _AudioIndicator({required this.active});
-
-  @override
-  State<_AudioIndicator> createState() => _AudioIndicatorState();
-}
-
-class _AudioIndicatorState extends State<_AudioIndicator>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _ctrl;
-  late final Animation<double> _anim;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 900),
-    )..repeat(reverse: true);
-    _anim = CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut);
-  }
-
-  @override
-  void didUpdateWidget(_AudioIndicator old) {
-    super.didUpdateWidget(old);
-    if (widget.active && !_ctrl.isAnimating) {
-      _ctrl.repeat(reverse: true);
-    } else if (!widget.active) {
-      _ctrl.stop();
-    }
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final color = Theme.of(context).colorScheme.primary;
-    return AnimatedBuilder(
-      animation: _anim,
-      builder: (context, child) {
-        return CustomPaint(
-          size: const Size(140, 140),
-          painter: _WavePainter(
-            progress: widget.active ? _anim.value : 0,
-            color: color,
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _WavePainter extends CustomPainter {
-  final double progress;
-  final Color color;
-  const _WavePainter({required this.progress, required this.color});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final cx = size.width / 2;
-    final cy = size.height / 2;
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 3
-      ..strokeCap = StrokeCap.round;
-
-    final micPaint = Paint()
-      ..color = color
-      ..style = PaintingStyle.fill;
-    canvas.drawRRect(
-      RRect.fromLTRBR(cx - 10, cy - 22, cx + 10, cy + 8, const Radius.circular(10)),
-      micPaint,
-    );
-    canvas.drawArc(
-      Rect.fromCenter(center: Offset(cx, cy + 8), width: 28, height: 20),
-      0, 3.14159, false, paint..style = PaintingStyle.stroke,
-    );
-    canvas.drawLine(Offset(cx, cy + 18), Offset(cx, cy + 26), paint);
-
-    if (progress == 0) return;
-
-    for (int i = 1; i <= 3; i++) {
-      final radius = 30.0 + i * 14 + progress * 6;
-      paint
-        ..color = color.withValues(alpha: (1.0 - (i * 0.25)) * progress)
-        ..style = PaintingStyle.stroke;
-      canvas.drawCircle(Offset(cx, cy), radius, paint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(_WavePainter old) =>
-      old.progress != progress || old.color != color;
 }
