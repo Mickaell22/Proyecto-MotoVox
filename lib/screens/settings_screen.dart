@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/license_service.dart';
+import 'audio_test_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -123,6 +124,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         : const Text('DESBLOQUEAR'),
                   ),
                 ],
+                const SizedBox(height: 32),
+                _SectionTitle('Audio'),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(
+                    Icons.mic_none,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                  title: const Text('Test de micrófono'),
+                  subtitle: const Text('Graba 5 segundos y escucha cómo suenan'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const AudioTestScreen(),
+                    ),
+                  ),
+                ),
                 const SizedBox(height: 32),
                 _SectionTitle('Acerca de'),
                 _InfoTile(

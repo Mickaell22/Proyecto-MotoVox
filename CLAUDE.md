@@ -12,6 +12,7 @@ App de intercomunicador para moto — piloto y copiloto, siempre abierto (sin pu
 - **Hotspot WiFi** — un teléfono crea hotspot, el otro se conecta, sin internet requerido
 - **qr_flutter** — genera QR con IP+puerto para conectarse fácil
 - **mobile_scanner** — escanea el QR del otro teléfono
+- **RNNoise** (en progreso) — red neuronal de Mozilla para supresión de ruido, compilada como `.so` nativo ARM64 y llamada vía `dart:ffi`
 
 ## Flujo de conexión (UX)
 ```
@@ -85,10 +86,20 @@ Teléfono A (host/piloto)          Teléfono B (cliente/copiloto)
 ### AudioRelayService (lib/services/audio_relay_service.dart)
 - Puerto TCP: **dinámico** — el SO asigna uno libre con `bind(0)`. `actualPort` expone el puerto asignado.
 - Formato: PCM16, 16000 Hz, mono
-- Graba con `FlutterSoundRecorder` → stream `Uint8List` → envía por socket
+- Graba con `FlutterSoundRecorder` → stream `Uint8List` → filtro de voz → envía por socket
 - Recibe datos del socket → `_player.uint8ListSink`
 - `AudioSource.voice_communication` — activa AEC hardware de Android
 - `enableVoiceProcessing`, `enableNoiseSuppression`, `enableEchoCancellation: true`
+- Filtro software actual: biquad bandpass 300 Hz–3400 Hz (HPF + LPF en cascada)
+  - Elimina ruido grave del motor (< 300 Hz) y silbido de viento (> 3400 Hz)
+  - Limitación: no distingue voz de otros sonidos en el mismo rango (aplausos, música)
+  - Será reemplazado por RNNoise (Fase 4)
+
+### AudioTestService (lib/services/audio_test_service.dart)
+- Graba 5 segundos a archivo WAV temporal con la misma configuración que la llamada real
+- Reproduce el archivo inmediatamente después para que el usuario oiga cómo suena
+- Estados: `idle → recording → playing → done`
+- Pantalla: `lib/screens/audio_test_screen.dart` — accesible desde Configuración → sección Audio
 
 ### RoomDiscoveryService (lib/services/room_discovery_service.dart)
 - Puerto UDP discovery: `8767`
@@ -96,19 +107,67 @@ Teléfono A (host/piloto)          Teléfono B (cliente/copiloto)
 - Cliente: escucha `0.0.0.0:8767`, construye lista de `RoomInfo`, expira salas a los 7s sin señal
 - Soporta múltiples salas simultáneas en la misma red (cada una con puerto TCP distinto)
 
-## Estado actual (2026-04-26) ✓
+## Estado actual (2026-05-03) ✓
 - **Conexión y transmisión de voz funcionando** — 2 teléfonos por hotspot, sin internet
-- **Supresión de ruido activa** — `AudioSource.voice_communication` + flags de AEC/NS confirmados funcionando (pendiente prueba a fondo en moto con ruido real)
+- **Supresión de ruido activa** — `AudioSource.voice_communication` + flags de AEC/NS confirmados funcionando
 - **Descubrimiento automático de salas** — UDP broadcast; el copiloto ve la sala en lista sin escanear QR
 - **Múltiples salas simultáneas** — puertos TCP dinámicos, cada sala independiente
 - **QR como fallback** — sigue disponible en la pantalla del host
-- `NetworkInterface.list()` prioriza `192.168.43.x` (subred de hotspot Android), luego `192.168.x` / `10.x`
+- **Test de audio** — graba 5 segundos y reproduce (acceso en Configuración → Audio)
+- **Filtro bandpass por software** — biquad 300 Hz–3400 Hz; elimina ruido fuera del rango de voz
+- `NetworkInterface.list()` prioriza `192.168.43.x` (subred de hotspot Android)
 
 ## Pendiente
-- Probar calidad de audio y supresión de ruido en condiciones reales (moto en movimiento, ruido de viento/motor)
+- **RNNoise Fase 3/4** — procesador de frames, integración (ver Roadmap)
+- **Versioning** — nunca se ha gestionado; el app real está en `1.2.0` pero pubspec dice `1.0.0+1`
+  - Agregar `package_info_plus` y leer versión dinámicamente en `settings_screen.dart`
+  - Esquema: MINOR por feature nueva, PATCH por bug fix
+  - Bumpar a `1.2.0+3` al iniciar la próxima sesión
+- Probar calidad de audio en condiciones reales (moto en movimiento)
 - Latencia — no medida todavía
 - Prueba de estabilidad conexión larga duración
 - Nombre de sala personalizable (actualmente "MotoVox" fijo)
+
+## Roadmap: RNNoise (supresión de ruido ML)
+
+RNNoise es una red neuronal recurrente (GRU) de Mozilla, ~100 KB, diseñada para separar
+voz humana de cualquier otro sonido en tiempo real. Es lo que usan Discord, Zoom y similares.
+Funciona en frames de **480 muestras** (30 ms a 16 kHz).
+
+### Fase 1 — Compilar librnnoise.so para ARM64 ✓ COMPLETADA
+**Resultado**: `lib/arm64-v8a/librnnoise.so` (5.75 MB) incluido en el APK.
+
+- Fuentes en `android/app/src/main/cpp/rnnoise/` (modelo lite: `rnnoise_data_little.c`)
+- `CMakeLists.txt` con `-O3 -ffast-math -DFLOAT_APPROX`
+- `build.gradle.kts` con `externalNativeBuild.cmake` + `abiFilters("arm64-v8a")`
+- Fixes aplicados: stub `x86/x86_arch_macros.h`, alias `rnnoise_data.h` → `rnnoise_data_little.h`, define `FLOAT_APPROX`
+- Símbolos exportados: `rnnoise_create`, `rnnoise_destroy`, `rnnoise_process_frame`, `rnnoise_get_frame_size`
+
+### Fase 2 — Dart FFI wrapper ✓ COMPLETADA
+**Resultado**: `lib/native/rnnoise_ffi.dart` — carga `librnnoise.so`, expone `init()` / `processFrame()` / `dispose()`.
+
+- `inputBuf` / `outputBuf`: buffers `Pointer<Float>` de 480 elementos reutilizables (sin copias extra)
+- `processFrame()` retorna VAD probability 0.0–1.0
+- Dependencia `ffi: ^2.1.0` agregada a `pubspec.yaml`
+
+### Fase 3 — RnnoiseProcessor (buffer + conversión) ← SIGUIENTE
+**Objetivo**: adaptar los chunks de flutter_sound (4096 bytes variables) al frame fijo de RNNoise (960 bytes = 480 muestras PCM16).
+
+Archivo: `lib/services/rnnoise_processor.dart`
+
+Lógica:
+- Acumula bytes entrantes en buffer interno
+- Cuando hay ≥ 960 bytes: extrae frame, convierte PCM16 → float32, llama `processFrame()`, convierte float32 → PCM16, emite
+- Resto del buffer se conserva para el siguiente chunk
+
+### Fase 4 — Integración y prueba
+**Objetivo**: reemplazar el filtro bandpass con RNNoise en la llamada real y en el test de audio.
+
+Cambios:
+- `AudioRelayService._applyVoiceFilter()` → delegar a `RnnoiseProcessor`
+- `AudioTestService` → pasar audio por `RnnoiseProcessor` antes de escribir al WAV
+- Probar con aplausos, ruido de motor, viento — solo la voz debe pasar
+- Medir latencia adicional por frame (target: < 5 ms)
 
 ## Decisiones de arquitectura
 - **Se abandonó WebRTC**: UDP bloqueado en la interfaz AP de hotspot Android. TCP funciona siempre entre AP y cliente.
@@ -117,6 +176,8 @@ Teléfono A (host/piloto)          Teléfono B (cliente/copiloto)
 - **Puertos TCP dinámicos** — cada sala usa el puerto que el SO asigne, permite múltiples salas en red
 - **Scope inicial**: solo piloto + copiloto (1 a 1)
 - **flutter_webrtc eliminado** del proyecto — `webrtc_service.dart` y `signaling_service.dart` borrados
+- **Filtro bandpass (biquad)** — solución temporal hasta integrar RNNoise; filtra frecuencias fuera del rango de voz pero no distingue voz de otros sonidos en banda
+- **RNNoise vía dart:ffi** — elegido sobre plugins Flutter inexistentes; compila como `.so` con NDK y se llama directamente desde Dart sin overhead de platform channels
 
 ## Hardware futuro
 - ESP32-S3 (piloto) + ESP32 normal (copiloto)
