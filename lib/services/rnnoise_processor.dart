@@ -10,32 +10,49 @@ class RnnoiseProcessor {
   static const int _bytesPerFrame = RnnoiseFfi.frameSize * 2;
 
   final RnnoiseFfi _ffi = RnnoiseFfi();
-  final _buffer = <int>[];
+  // Residuo del chunk anterior (< 960 bytes). Uint8List evita boxing.
+  Uint8List _residual = Uint8List(0);
 
   void init() => _ffi.init();
 
   /// Procesa [input] (PCM16 LE, 16 kHz, mono) y devuelve los bytes limpios.
-  /// Puede devolver menos bytes de los recibidos si el buffer no llena un frame.
   Uint8List process(Uint8List input) {
-    _buffer.addAll(input);
+    // Combinar residuo con la entrada nueva.
+    final Uint8List data;
+    if (_residual.isEmpty) {
+      data = input;
+    } else {
+      data = Uint8List(_residual.length + input.length)
+        ..setRange(0, _residual.length, _residual)
+        ..setRange(_residual.length, _residual.length + input.length, input);
+    }
+
+    final frames = data.length ~/ _bytesPerFrame;
+    if (frames == 0) {
+      _residual = data.sublist(0); // copia defensiva
+      return Uint8List(0);
+    }
 
     final output = BytesBuilder(copy: false);
-
-    while (_buffer.length >= _bytesPerFrame) {
-      final frameBytes = _buffer.sublist(0, _bytesPerFrame);
-      _buffer.removeRange(0, _bytesPerFrame);
-      output.add(_processFrame(frameBytes));
+    for (int f = 0; f < frames; f++) {
+      output.add(_processFrame(data, f * _bytesPerFrame));
     }
+
+    // Guardar residuo (< 960 bytes) para el siguiente chunk.
+    final residualStart = frames * _bytesPerFrame;
+    _residual = residualStart < data.length
+        ? data.sublist(residualStart) // sublist crea copia
+        : Uint8List(0);
 
     return output.toBytes();
   }
 
-  Uint8List _processFrame(List<int> bytes) {
-    // PCM16 LE → float32 (rango [-32768, 32767], no normalizado)
+  // Lee un frame de [data] en [offset], lo procesa con RNNoise y devuelve PCM16.
+  Uint8List _processFrame(Uint8List data, int offset) {
     final input = _ffi.inputBuf;
     for (int i = 0; i < RnnoiseFfi.frameSize; i++) {
-      final lo = bytes[i * 2];
-      final hi = bytes[i * 2 + 1];
+      final lo = data[offset + i * 2];
+      final hi = data[offset + i * 2 + 1];
       int sample = (hi << 8) | lo;
       if (sample >= 0x8000) sample -= 0x10000; // sign-extend
       (input + i).value = sample.toDouble();
@@ -43,11 +60,10 @@ class RnnoiseProcessor {
 
     _ffi.processFrame();
 
-    // float32 → PCM16 LE
     final out = Uint8List(_bytesPerFrame);
-    final output = _ffi.outputBuf;
+    final outputBuf = _ffi.outputBuf;
     for (int i = 0; i < RnnoiseFfi.frameSize; i++) {
-      int sample = (output + i).value.round().clamp(-32768, 32767);
+      int sample = (outputBuf + i).value.round().clamp(-32768, 32767);
       out[i * 2]     = sample & 0xFF;
       out[i * 2 + 1] = (sample >> 8) & 0xFF;
     }
@@ -56,6 +72,6 @@ class RnnoiseProcessor {
 
   void dispose() {
     _ffi.dispose();
-    _buffer.clear();
+    _residual = Uint8List(0);
   }
 }
