@@ -1,14 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:qr_flutter/qr_flutter.dart';
 import '../services/license_service.dart';
-import '../services/apk_share_service.dart';
 import '../theme.dart';
 import '../widgets/mv_widgets.dart';
 import 'qr_screen.dart';
 import 'rooms_screen.dart';
 import 'expired_screen.dart';
 import 'settings_screen.dart';
+import 'share_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -63,38 +62,10 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  final _apkShare = ApkShareService();
-
-  Future<void> _shareApp() async {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => const AlertDialog(
-        content: Row(children: [
-          CircularProgressIndicator(),
-          SizedBox(width: 16),
-          Text('Iniciando servidor...'),
-        ]),
-      ),
+  void _shareApp() {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const ShareScreen()),
     );
-
-    final ok = await _apkShare.start();
-    if (!mounted) return;
-    Navigator.of(context).pop();
-
-    if (!ok) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Activa el hotspot e intenta de nuevo')),
-      );
-      return;
-    }
-
-    await showDialog(
-      context: context,
-      builder: (_) => _ApkShareDialog(url: _apkShare.shareUrl!),
-    );
-
-    await _apkShare.stop();
   }
 
   void _onLogoTap() {
@@ -246,48 +217,3 @@ class _TrialBadge extends StatelessWidget {
   }
 }
 
-class _ApkShareDialog extends StatelessWidget {
-  final String url;
-  const _ApkShareDialog({required this.url});
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Descargar MotoVox'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Text(
-            'Conectate al hotspot y abre este QR en el navegador',
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 16),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: QrImageView(
-              data: url,
-              size: 220,
-              backgroundColor: Colors.white,
-            ),
-          ),
-          const SizedBox(height: 12),
-          SelectableText(
-            url,
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 12),
-          ),
-        ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('CERRAR'),
-        ),
-      ],
-    );
-  }
-}
