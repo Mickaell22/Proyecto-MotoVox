@@ -19,7 +19,12 @@ class LicenseService {
     if (prefs.getBool(_keyUnlocked) == true) return false;
 
     final raw = prefs.getString(_keyInstallDate);
-    if (raw == null) return false;
+    if (raw == null) {
+      // Self-heal: si la instalación nunca se registró, el trial arranca aquí
+      // (evita acceso indefinido si registerInstallIfNeeded no corrió).
+      await prefs.setString(_keyInstallDate, DateTime.now().toIso8601String());
+      return false;
+    }
 
     final installDate = DateTime.parse(raw);
     final diff = DateTime.now().difference(installDate).inDays;

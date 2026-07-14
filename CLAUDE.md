@@ -93,6 +93,8 @@ Teléfono A (host/piloto)          Teléfono B (cliente/copiloto)
 - Graba con `FlutterSoundRecorder` → stream `Uint8List` → **RnnoiseProcessor** → envía por socket
 - Recibe datos del socket → `_player.uint8ListSink`
 - `AudioSource.voice_communication` — activa AEC hardware de Android
+- El host acepta UNA sola conexión (scope 1-a-1); una segunda se destruye. Al desconectarse se libera el slot y se detienen recorder y player, lo que permite reconexión limpia del mismo copiloto.
+- `connectToHost` exige `port` explícito (los puertos son dinámicos; no hay default válido)
 - `enableVoiceProcessing`, `enableNoiseSuppression`, `enableEchoCancellation: true`
 - **Filtro de voz: RNNoise** — reemplazó el filtro biquad bandpass. Supresión ML que distingue voz de otros sonidos.
 
@@ -100,6 +102,7 @@ Teléfono A (host/piloto)          Teléfono B (cliente/copiloto)
 - Adapta chunks variables de flutter_sound (4096 bytes) al frame fijo de RNNoise (960 bytes = 480 muestras PCM16)
 - Buffer interno `Uint8List _residual` — acumula el sobrante entre chunks, sin boxing ni O(n) shifts
 - `process(Uint8List input)` → emite solo frames completos; el residuo (< 960 bytes) se guarda para el siguiente chunk
+- **Fallback sin .so**: si `RnnoiseFfi.init()` falló (librnnoise.so no carga), `process()` devuelve el input tal cual (passthrough). Sin este guard, `processFrame()` lanzaría `LateInitializationError` en cada frame en release y la llamada quedaría muda.
 - Conversión PCM16 LE ↔ float32 en rango nativo [-32768, 32767] (sin normalizar — requerido por RNNoise)
 - Acceso a buffers FFI con `(pointer + i).value` (API actual de dart:ffi, sin `elementAt` deprecado)
 - **No usar en AudioTestService**: el audio pre-procesado por hardware (AEC/NS) confunde al estimador de ruido de RNNoise → lo silencia después del primer segundo.

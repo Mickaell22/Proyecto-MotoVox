@@ -28,7 +28,11 @@ class AudioRelayService {
   Future<void> init() async {
     await _recorder.openRecorder();
     await _player.openPlayer();
-    _rnnoise.init();
+    try {
+      _rnnoise.init();
+    } catch (_) {
+      // La app sigue funcionando sin supresión de ruido si la .so no carga.
+    }
   }
 
   Future<void> startHost() async {
@@ -36,6 +40,12 @@ class AudioRelayService {
     _actualPort = _serverSocket!.port;
     _serverSocket!.listen(
       (socket) async {
+        // ponytail: scope 1-a-1 — se rechaza una segunda conexión mientras
+        // hay una activa. Upgrade: multi-cliente para grupos de motos.
+        if (_socket != null) {
+          socket.destroy();
+          return;
+        }
         socket.setOption(SocketOption.tcpNoDelay, true);
         _socket = socket;
         await _startAudio(socket);
@@ -44,7 +54,7 @@ class AudioRelayService {
     );
   }
 
-  Future<bool> connectToHost(String hostIp, {int port = 8766}) async {
+  Future<bool> connectToHost(String hostIp, {required int port}) async {
     try {
       final socket = await Socket.connect(
         hostIp, port,
@@ -91,8 +101,12 @@ class AudioRelayService {
       sampleRate: _sampleRate,
       bufferSize: _bufferSize,
       audioSource: AudioSource.voice_communication,
-      enableVoiceProcessing: true,
-      enableNoiseSuppression: true,
+      // enableVoiceProcessing y enableNoiseSuppression desactivados:
+      // el hardware pre-procesa el audio y RNNoise no puede distinguir voz
+      // de ruido → silencia todo después de ~5 segundos.
+      // Sólo AEC se mantiene, es esencial para llamadas bidireccionales.
+      enableVoiceProcessing: false,
+      enableNoiseSuppression: false,
       enableEchoCancellation: true,
     );
 
@@ -101,14 +115,20 @@ class AudioRelayService {
 
   void _onDisconnected() {
     if (!_stateController.isClosed) _stateController.add(false);
+    _recorder.stopRecorder().catchError((_) => null);
+    _player.stopPlayer().catchError((_) => null);
+    _recorderStream?.close();
+    _recorderStream = null;
+    // Libera el slot para que el mismo copiloto pueda reconectarse al host.
+    _socket = null;
   }
 
   void setMuted(bool mute) {
     _muted = mute;
     if (mute) {
-      _recorder.pauseRecorder();
+      _recorder.pauseRecorder().catchError((_) => null);
     } else {
-      _recorder.resumeRecorder();
+      _recorder.resumeRecorder().catchError((_) => null);
     }
   }
 

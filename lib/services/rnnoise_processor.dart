@@ -16,7 +16,10 @@ class RnnoiseProcessor {
   void init() => _ffi.init();
 
   /// Procesa [input] (PCM16 LE, 16 kHz, mono) y devuelve los bytes limpios.
+  /// Si la .so no cargó (init falló), passthrough: audio sin supresión,
+  /// pero la llamada sigue funcionando.
   Uint8List process(Uint8List input) {
+    if (!_ffi.isInitialized) return input;
     // Combinar residuo con la entrada nueva.
     final Uint8List data;
     if (_residual.isEmpty) {
