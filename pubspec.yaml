@@ -1,5 +1,5 @@
 name: motovox
-description: Intercomunicador para moto via WebRTC sobre hotspot WiFi local.
+description: Intercomunicador para moto via sockets TCP sobre hotspot WiFi local.
 publish_to: 'none'
 
 version: 1.2.0+3
